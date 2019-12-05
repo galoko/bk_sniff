@@ -1,0 +1,140 @@
+﻿<html>
+<script>
+
+async function getRestaurantById(id) {
+	let response;
+	try {
+		response = await fetch('https://orderapp.burgerking.ru/api/v1/restaurants/get?id=' + id);
+	} catch {
+	}
+	if (!response) {
+		response = null;
+	} else if (response.status !== 200) {
+		response = null;
+	} else {
+		response = await response.json();
+	}
+	return response;
+}
+
+async function iterateOverRestourants(id, maxId) {
+	if (id > maxId) {
+		console.log('done');
+		return;
+	}
+	
+	setTimeout(async () => {
+		const response = await getRestaurantById(id);
+		if (response) {
+			console.log(`id: ${id}, address: ${response.response.address}`);
+		} else {
+			console.log(`id: ${id} doesn't exists`);
+		}
+		iterateOverRestourants(id + 1, maxId);
+	}, 10);
+}
+
+async function getCouponByCode(restaurantId, coupon) {
+	let response;
+	try {
+		response = await fetch('https://orderapp.burgerking.ru/api/v1/menu/coupons?restaurant=' + restaurantId + '&code=' + coupon);
+	} catch {
+	}
+	if (!response) {
+		response = null;
+	} else if (response.status !== 200) {
+		response = null;
+	} else {
+		response = await response.json();
+	}
+	return response;
+}
+
+const coupons = JSON.parse(localStorage.getItem('bk_coupons')) || {};
+const checked_coupons = JSON.parse(localStorage.getItem('bk_checked_coupons')) || {};
+
+async function iterateOverCoupons(restaurantId, coupon, maxCoupon) {
+	if (coupon > maxCoupon) {
+		console.log('done');
+		return;
+	}
+	
+	setTimeout(async () => {
+		if (!(coupon in checked_coupons)) {
+			const response = await getCouponByCode(restaurantId, coupon);
+			if (response) {
+				console.log(`coupon: ${coupon}, name: ${response.response.name}`);
+
+				coupons[coupon] = response;
+				localStorage.setItem('bk_coupons', JSON.stringify(coupons, null, 2));
+				
+				checked_coupons[coupon] = true;
+				// localStorage.setItem('bk_checked_coupons', JSON.stringify(checked_coupons, null, 2));
+			} else {
+				// console.log(`coupon: ${coupon} doesn't exists`);
+				
+				if (coupons[coupon]) {
+					delete coupons[coupon];
+					localStorage.setItem('bk_coupons', JSON.stringify(coupons, null, 2));
+				}
+				
+				checked_coupons[coupon] = false;
+				// localStorage.setItem('bk_checked_coupons', JSON.stringify(checked_coupons, null, 2))
+			}
+		}
+		
+		iterateOverCoupons(restaurantId, coupon + 1, maxCoupon);
+	}, 0);
+}
+
+async function main() {
+	// await iterateOverRestourants(5, 700);
+	
+	const startCoupon = 1;
+	const maxCoupon = 100000;
+	const threadCount = 100;
+	const couponsPerThread = Math.trunc(maxCoupon / threadCount);
+	
+	let currentCoupon = startCoupon;
+	for (let threadNum = 1; threadNum <= threadCount; threadNum++) {
+		iterateOverCoupons(249, currentCoupon, currentCoupon + couponsPerThread);
+		currentCoupon += couponsPerThread;
+	}
+	
+	/*
+	Object.keys(coupons).forEach(key => {
+		coupons[key].response.code = key;
+	});
+	
+	const values = Object.values(coupons);
+	
+	values.sort((left, right) => {
+		if (left.response.price === right.response.price) {
+			return 0;
+		}
+	
+		return left.response.price < right.response.price ? -1 : 1;
+	});
+	
+	const identityMap = {};
+	
+	values.forEach((coupon) => {
+		const name = coupon.response.combo.name.replace(/ (за|от) .+$/gi, '').replace(/^(Ins|SMM)\.?/gi, '').trim();
+		const price = Math.round(coupon.response.price / 100);
+		const code = coupon.response.code.padStart(5, ' ');
+		
+		const hash = name.toLowerCase() + '_' + price;
+		if (hash in identityMap) {
+			return;
+		}
+		identityMap[hash] = true;
+		
+		console.log(`${code}: ${name} за ${price} рублей`);
+	});
+	*/
+}
+
+main();
+
+</script>
+<html>
